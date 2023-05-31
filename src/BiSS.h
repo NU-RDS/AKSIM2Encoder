@@ -1,15 +1,19 @@
-#include <SPI.h>
-#include "CustomSPI.h"
 #include <Arduino.h>
+#include <SPI.h>
+
+#include "CustomSPI.h"
 // #include "CRC.h"
 
 template <uint8_t kNumPreambleBits, uint8_t kNumAckBits, uint8_t kNumDataBits, uint8_t kNumCrcBits>
 class BiSS
 {
 public:
-    BiSS(CustomSPIClass &spi, uint32_t clock_speed /* , CRC &crc */) : spi_{spi}, settings_{clock_speed, MSBFIRST, SPI_MODE3} /* , crc_{crc} */ {}
+    BiSS(CustomSPIClass &spi, uint32_t clock_speed /* , CRC &crc */)
+        : spi_{spi}, settings_{clock_speed, MSBFIRST, SPI_MODE3} /* , crc_{crc} */
+    {
+    }
 
-    struct Data // order backwards because of big vs little endian
+    struct Data  // order backwards because of big vs little endian
     {
         uint16_t CRC : kNumCrcBits;
         bool Warn : 1;
@@ -27,10 +31,7 @@ public:
         Data data;
     };
 
-    void Begin()
-    {
-        spi_.begin();
-    }
+    void Begin() { spi_.begin(); }
 
     // Can read up to 64 bits of data
     Data ReadPacket(bool CDM = 0)
@@ -41,10 +42,11 @@ public:
         spi_.beginTransaction(settings_);
         for (int i = 0; i < (n_bits / 8) - 1; i++)
         {
-            data.raw |= spi_.transfer(0) << (n_bits - (8 * (i + 1))); // MSB first reading
+            data.raw |= spi_.transfer(0) << (n_bits - (8 * (i + 1)));  // MSB first reading
         }
         // last 8+bits%8 bits
-        data.raw |= (spi_.transfern(0, 8 + (n_bits % 8) + !CDM) << (8 - (n_bits % 8))); // ignore trailing bits, append clock pulse if !CDM
+        data.raw |= (spi_.transfern(0, 8 + (n_bits % 8) + !CDM)
+                     << (8 - (n_bits % 8)));  // ignore trailing bits, append clock pulse if !CDM
         spi_.endTransaction();
 
         // set error if failed ACK or start
@@ -73,10 +75,7 @@ class BiSSAKSIM2
 public:
     BiSSAKSIM2(CustomSPIClass &spi, uint32_t clock_speed) : bissc_{spi, clock_speed /* , *(new CRC{0x43, 7}) */} {}
 
-    void Begin()
-    {
-        bissc_.Begin();
-    }
+    void Begin() { bissc_.Begin(); }
 
     uint64_t ReadRawPosition()
     {
@@ -86,12 +85,11 @@ public:
         return data.Data;
     }
 
-    void Zero()
-    {
-        zero_value_ = ReadRawPosition();
-    }
+    void Zero() { zero_value_ = ReadRawPosition(); }
 
-    float ReadPosition() // radians
+    void SetZeroPosition(float zero_position) { zero_value_ = zero_position * kMaxValue / (2 * M_PI); }
+
+    float ReadPosition()  // radians
     {
         int64_t offset_position = ReadRawPosition() - zero_value_;
         if (offset_position < 0)
@@ -108,12 +106,12 @@ public:
 
     bool GetWarning()
     {
-        return !warn_; // active low
+        return !warn_;  // active low
     }
 
     bool GetError()
     {
-        return !error_; // active low
+        return !error_;  // active low
     }
 
     // void QueueRead()
